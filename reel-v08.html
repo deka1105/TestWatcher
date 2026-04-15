@@ -1,0 +1,1253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>REEL</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;1,300&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #070707;
+  --surface:   #101010;
+  --border:    #1e1e1e;
+  --border2:   #2a2a2a;
+  --dim:       #444;
+  --text:      #888;
+  --hi:        #fff;
+  --gap:       5px;
+  --col-min:   190px;
+  --bar-h:     36px;
+  --pin-scale: 1.2;
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ─── TOP BAR ─── */
+#bar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 80;
+  height: var(--bar-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  background: linear-gradient(to bottom, rgba(7,7,7,.97) 60%, transparent);
+  pointer-events: none;
+}
+#bar .logo {
+  font-family: 'Syne', sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: .35em;
+  color: var(--hi);
+  opacity: .8;
+}
+#bar .meta {
+  font-size: 9px;
+  letter-spacing: .12em;
+  color: var(--dim);
+}
+
+/* ─── LOAD SCREEN ─── */
+#load-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  background: var(--bg);
+  transition: opacity .5s ease, visibility .5s ease;
+}
+#load-screen.gone { opacity: 0; visibility: hidden; }
+#load-screen h1 {
+  font-family: 'Syne', sans-serif;
+  font-size: clamp(40px, 9vw, 88px);
+  font-weight: 800;
+  letter-spacing: .3em;
+  color: var(--hi);
+}
+#load-screen p {
+  font-size: 10px;
+  letter-spacing: .15em;
+  color: var(--dim);
+  margin-top: -10px;
+}
+#drop-box {
+  position: relative;
+  width: clamp(240px, 48vw, 420px);
+  border: 1px solid var(--border);
+  padding: 44px 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+  margin-top: 8px;
+}
+#drop-box:hover,
+#drop-box.drag { border-color: #3a3a3a; background: rgba(255,255,255,.015); }
+#drop-box .ico { font-size: 28px; opacity: .25; user-select: none; }
+#drop-box .hint {
+  font-size: 10px;
+  letter-spacing: .1em;
+  color: var(--dim);
+  text-align: center;
+  line-height: 1.9;
+}
+#drop-box input[type=file] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 0;
+}
+.ghost-btn {
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--dim);
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: .18em;
+  padding: 9px 22px;
+  cursor: pointer;
+  transition: border-color .2s, color .2s;
+}
+.ghost-btn:hover { border-color: var(--dim); color: var(--hi); }
+
+/* ─── COMPRESSING INDICATOR ─── */
+#compress-indicator {
+  position: fixed;
+  bottom: 18px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 320;
+  background: rgba(8,8,8,.95);
+  border: 1px solid var(--border2);
+  padding: 9px 20px;
+  font-size: 9px;
+  letter-spacing: .14em;
+  color: var(--dim);
+  white-space: nowrap;
+  transition: opacity .3s, visibility .3s;
+  pointer-events: none;
+}
+#compress-indicator.gone { opacity: 0; visibility: hidden; }
+
+/* ─── REEL ─── */
+#reel {
+  display: flex;
+  gap: var(--gap);
+  padding: 0 var(--gap);
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ─── COLUMNS ─── */
+.col {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  min-width: 0;
+}
+
+/* manual scroll mode */
+.col.manual {
+  overflow-y: scroll;
+  scrollbar-width: none;
+}
+.col.manual::-webkit-scrollbar { display: none; }
+
+.col-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  will-change: transform;
+}
+.col-inner.up { animation: scroll-up linear infinite; }
+.col-inner.dn { animation: scroll-dn linear infinite; }
+@keyframes scroll-up {
+  from { transform: translateY(0);    }
+  to   { transform: translateY(-50%); }
+}
+@keyframes scroll-dn {
+  from { transform: translateY(-50%); }
+  to   { transform: translateY(0);    }
+}
+
+/* animation paused states */
+.col-inner.paused { animation-play-state: paused; }
+.col:hover .col-inner:not(.manual-mode) { animation-play-state: paused; }
+
+/* manual mode: no animation */
+.col-inner.manual-mode {
+  animation: none !important;
+  transform: none !important;
+}
+
+/* ─── TILE ─── */
+.item {
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  flex-shrink: 0;
+  filter: grayscale(1) brightness(.65);
+  transition: filter .3s;
+}
+.item:hover { filter: grayscale(.1) brightness(1.05); z-index: 5; }
+
+/* Pinned tile: collapse out of flow — no empty space */
+.item.float-src { display: none !important; }
+
+.item img,
+.item video {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+}
+
+/* filename on hover */
+.item-label {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  padding: 18px 8px 7px;
+  background: linear-gradient(transparent, rgba(0,0,0,.75));
+  font-size: 8.5px;
+  letter-spacing: .06em;
+  color: rgba(255,255,255,.5);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transition: opacity .2s;
+  pointer-events: none;
+}
+.item:hover .item-label { opacity: 1; }
+
+/* PIN glyph */
+.pin-btn {
+  position: absolute;
+  top: 6px; right: 6px;
+  font-size: 9px;
+  letter-spacing: .05em;
+  color: rgba(255,255,255,.5);
+  background: rgba(0,0,0,.6);
+  border: 1px solid rgba(255,255,255,.12);
+  padding: 2px 6px;
+  opacity: 0;
+  transition: opacity .15s, color .15s, border-color .15s;
+  pointer-events: all;
+  cursor: pointer;
+  font-family: 'DM Mono', monospace;
+  z-index: 6;
+  user-select: none;
+}
+.item:hover .pin-btn { opacity: 1; }
+.item.float-src .pin-btn,
+.item.pin-active .pin-btn {
+  opacity: 1;
+  color: rgba(255,255,255,.9);
+  border-color: rgba(255,255,255,.4);
+}
+
+/* ─── FLOATING PINS ─── */
+.pin-float {
+  position: fixed;
+  z-index: 200;
+  transform: scale(var(--pin-scale));
+  transform-origin: center center;
+  filter: grayscale(0) brightness(1.1);
+  box-shadow: 0 0 0 2px rgba(255,255,255,.5), 0 10px 36px rgba(0,0,0,.7);
+  overflow: hidden;
+  transition: transform .25s ease;
+}
+.pin-float img,
+.pin-float video {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+}
+.pin-float-close {
+  position: absolute;
+  top: 5px; left: 5px;
+  z-index: 10;
+  width: 20px; height: 20px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.8);
+  border: 1px solid rgba(255,255,255,.15);
+  color: rgba(255,255,255,.6);
+  font-size: 11px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .15s, color .15s;
+  font-family: 'DM Mono', monospace;
+  line-height: 1;
+  padding: 0;
+}
+.pin-float:hover .pin-float-close { opacity: 1; }
+.pin-float-close:hover { color: var(--hi); border-color: rgba(255,255,255,.45); }
+
+/* ─── CONTROL PANEL ─── */
+#ctrl-panel {
+  position: fixed;
+  bottom: 18px;
+  right: 16px;
+  z-index: 90;
+  background: rgba(8,8,8,.95);
+  border: 1px solid var(--border2);
+  padding: 14px 16px 16px;
+  display: none;
+  flex-direction: column;
+  gap: 13px;
+  min-width: 222px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+#ctrl-panel.visible { display: flex; }
+
+.ctrl-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ctrl-label {
+  font-size: 9px;
+  letter-spacing: .15em;
+  color: var(--dim);
+  width: 28px;
+  flex-shrink: 0;
+}
+.ctrl-val {
+  font-size: 9px;
+  letter-spacing: .06em;
+  color: var(--text);
+  width: 38px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.ctrl-range {
+  -webkit-appearance: none;
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  background: var(--border2);
+}
+.ctrl-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: #777;
+  border: 1px solid #999;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, transform .1s;
+}
+.ctrl-range:hover::-webkit-slider-thumb,
+.ctrl-range:active::-webkit-slider-thumb {
+  background: var(--hi);
+  border-color: var(--hi);
+  transform: scale(1.15);
+}
+.ctrl-range::-moz-range-thumb {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: #777;
+  border: 1px solid #999;
+  cursor: pointer;
+}
+
+/* toggle button */
+.ctrl-toggle {
+  flex: 1;
+  height: 24px;
+  border: 1px solid var(--border2);
+  background: none;
+  color: var(--dim);
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: .14em;
+  cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 8px;
+}
+.ctrl-toggle:hover { border-color: #555; color: var(--text); }
+.ctrl-toggle.on {
+  border-color: rgba(255,255,255,.35);
+  color: var(--hi);
+  background: rgba(255,255,255,.04);
+}
+.ctrl-toggle .dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--dim);
+  transition: background .15s;
+  flex-shrink: 0;
+}
+.ctrl-toggle.on .dot { background: var(--hi); }
+
+/* CSV button */
+#csv-btn {
+  flex: 1;
+  height: 24px;
+  border: 1px solid var(--border2);
+  background: none;
+  color: var(--dim);
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: .14em;
+  cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 8px;
+}
+#csv-btn:hover { border-color: #555; color: var(--hi); }
+#csv-btn.has-data {
+  border-color: rgba(255,255,255,.2);
+  color: var(--text);
+}
+
+/* ─── VIDEO UNLOCK BANNER ─── */
+#vid-unlock {
+  position: fixed;
+  bottom: 18px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 95;
+  background: rgba(8,8,8,.9);
+  border: 1px solid var(--border2);
+  padding: 9px 20px;
+  font-size: 9px;
+  letter-spacing: .14em;
+  color: var(--dim);
+  cursor: pointer;
+  transition: opacity .3s, visibility .3s;
+  white-space: nowrap;
+}
+#vid-unlock.gone { opacity: 0; visibility: hidden; pointer-events: none; }
+#vid-unlock:hover { color: var(--hi); border-color: #555; }
+
+/* ─── OVERLAY ─── */
+#overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,.82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .22s, visibility .22s;
+}
+#overlay.open { opacity: 1; visibility: visible; }
+
+#ov-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: #0c0c0c;
+  border: 1px solid #1c1c1c;
+  max-width: min(92vw, 1140px);
+  overflow: hidden;
+}
+#ov-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 14px 8px;
+  border-bottom: 1px solid #181818;
+  background: #0a0a0a;
+  flex-shrink: 0;
+  gap: 10px;
+}
+#ov-name {
+  font-size: 10px;
+  letter-spacing: .1em;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+#ov-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+#ov-counter {
+  font-size: 9px;
+  letter-spacing: .1em;
+  color: var(--dim);
+  font-style: italic;
+}
+.ov-btn {
+  background: none;
+  border: 1px solid #282828;
+  color: var(--dim);
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: .15em;
+  padding: 5px 11px;
+  cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.ov-btn:hover { border-color: #666; color: var(--hi); }
+.ov-btn.active {
+  border-color: rgba(255,255,255,.5);
+  color: var(--hi);
+  background: rgba(255,255,255,.04);
+}
+#ov-media {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  max-height: calc(93vh - 46px);
+  background: #090909;
+}
+#ov-img, #ov-vid {
+  display: block;
+  max-width: 100%;
+  max-height: calc(93vh - 46px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+.nav-btn {
+  position: fixed;
+  top: 50%; transform: translateY(-50%);
+  z-index: 510;
+  background: none;
+  border: 1px solid #222;
+  color: #555;
+  font-size: 16px;
+  padding: 14px 10px;
+  cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+.nav-btn:hover { border-color: #666; color: var(--hi); }
+#nav-l { left: 10px; }
+#nav-r { right: 10px; }
+
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-thumb { background: var(--border); }
+
+@media (max-width: 480px)  { :root { --col-min: 130px; --gap: 3px; } }
+@media (min-width: 1440px) { :root { --col-min: 210px; } }
+@media (min-width: 1920px) { :root { --col-min: 250px; } }
+</style>
+</head>
+<body>
+
+<!-- Load screen -->
+<div id="load-screen">
+  <h1>REEL</h1>
+  <p>moving image archive</p>
+  <div id="drop-box">
+    <div class="ico">◫</div>
+    <div class="hint">drop folder here<br>or click to browse</div>
+    <input type="file" id="file-input" multiple accept="image/*,video/*" webkitdirectory>
+  </div>
+  <button class="ghost-btn" id="demo-btn">LOAD DEMO</button>
+</div>
+
+<!-- Top bar -->
+<div id="bar">
+  <div class="logo">REEL</div>
+  <div class="meta" id="meta-label"></div>
+</div>
+
+<!-- Reel -->
+<div id="reel"></div>
+
+<!-- Video unlock banner -->
+<div id="vid-unlock">▶ CLICK TO ENABLE VIDEO PLAYBACK</div>
+
+<!-- Compression progress indicator -->
+<div id="compress-indicator" class="gone">COMPRESSING THUMBNAILS…</div>
+
+<!-- Control panel -->
+<div id="ctrl-panel">
+  <!-- scroll toggle -->
+  <div class="ctrl-row">
+    <span class="ctrl-label">SCR</span>
+    <button class="ctrl-toggle on" id="scroll-toggle">
+      <span class="dot"></span><span id="scroll-label">AUTO</span>
+    </button>
+  </div>
+  <!-- speed -->
+  <div class="ctrl-row">
+    <span class="ctrl-label">SPD</span>
+    <input class="ctrl-range" type="range" id="spd-range" min="0.2" max="4" step="0.05" value="1">
+    <span class="ctrl-val" id="spd-val">1×</span>
+  </div>
+  <!-- tile / column size -->
+  <div class="ctrl-row">
+    <span class="ctrl-label">COL</span>
+    <input class="ctrl-range" type="range" id="col-range" min="100" max="400" step="5" value="190">
+    <span class="ctrl-val" id="col-val">190px</span>
+  </div>
+  <!-- pin scale -->
+  <div class="ctrl-row">
+    <span class="ctrl-label">SIZ</span>
+    <input class="ctrl-range" type="range" id="siz-range" min="0.5" max="3" step="0.05" value="1.2">
+    <span class="ctrl-val" id="siz-val">1.2×</span>
+  </div>
+  <!-- csv stats -->
+  <div class="ctrl-row">
+    <span class="ctrl-label">LOG</span>
+    <button id="csv-btn">↓ EXPORT STATS</button>
+  </div>
+</div>
+
+<!-- Overlay -->
+<div id="overlay">
+  <button class="nav-btn" id="nav-l">&#8592;</button>
+  <div id="ov-card">
+    <div id="ov-titlebar">
+      <div id="ov-name"></div>
+      <div id="ov-actions">
+        <span id="ov-counter"></span>
+        <button class="ov-btn" id="ov-pin">PIN</button>
+        <button class="ov-btn" id="ov-close">ESC</button>
+      </div>
+    </div>
+    <div id="ov-media">
+      <img id="ov-img" alt="" style="display:none">
+      <video id="ov-vid" loop muted playsinline style="display:none"></video>
+    </div>
+  </div>
+  <button class="nav-btn" id="nav-r">&#8594;</button>
+</div>
+
+<script>
+'use strict';
+
+/* ─────────────────────────────────────────
+   STATE
+───────────────────────────────────────── */
+let ITEMS      = [];
+let viewIdx    = -1;
+let speedMult  = 1.0;
+let pinScale   = 1.2;
+let colSize    = 190;
+let autoScroll = true;
+let resumeTimer = null;
+
+const pinSet    = new Set();
+const pinFloats = new Map();
+
+/* track all video elements so we can unlock them on first click */
+const allTileVids = new Set();
+let videosUnlocked = false;
+
+/* ─────────────────────────────────────────
+   STATS — pinned & opened counts per file
+───────────────────────────────────────── */
+/* statsMap[path] = { pinned: 0, opened: 0 } */
+const statsMap = {};
+
+function recordStat(idx, type /* 'pin' | 'open' */) {
+  const item = ITEMS[idx];
+  if (!item) return;
+  const key = item.path || item.name;
+  if (!statsMap[key]) statsMap[key] = { pinned: 0, opened: 0 };
+  if (type === 'pin')  statsMap[key].pinned++;
+  if (type === 'open') statsMap[key].opened++;
+  /* persist to localStorage so stats survive rebuilds within same session */
+  try { localStorage.setItem('reel_stats', JSON.stringify(statsMap)); } catch(_) {}
+  updateCsvBtn();
+}
+
+function loadPersistedStats() {
+  try {
+    const saved = localStorage.getItem('reel_stats');
+    if (saved) Object.assign(statsMap, JSON.parse(saved));
+  } catch(_) {}
+}
+
+function updateCsvBtn() {
+  const hasData = Object.keys(statsMap).length > 0;
+  document.getElementById('csv-btn').classList.toggle('has-data', hasData);
+}
+
+function downloadCSV() {
+  if (!Object.keys(statsMap).length) return;
+  const rows = ['filename with path,# pinned,# opened'];
+  Object.entries(statsMap)
+    .sort((a, b) => (b[1].pinned + b[1].opened) - (a[1].pinned + a[1].opened))
+    .forEach(([path, s]) => {
+      rows.push(`"${path.replace(/"/g, '""')}",${s.pinned},${s.opened}`);
+    });
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'reel-stats.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+}
+
+/* ─────────────────────────────────────────
+   DOM REFS
+───────────────────────────────────────── */
+const $reel             = document.getElementById('reel');
+const $overlay          = document.getElementById('overlay');
+const $ovImg            = document.getElementById('ov-img');
+const $ovVid            = document.getElementById('ov-vid');
+const $ovName           = document.getElementById('ov-name');
+const $ovCounter        = document.getElementById('ov-counter');
+const $metaLabel        = document.getElementById('meta-label');
+const $loadScr          = document.getElementById('load-screen');
+const $ctrlPanel        = document.getElementById('ctrl-panel');
+const $spdRange         = document.getElementById('spd-range');
+const $sizRange         = document.getElementById('siz-range');
+const $colRange         = document.getElementById('col-range');
+const $spdVal           = document.getElementById('spd-val');
+const $sizVal           = document.getElementById('siz-val');
+const $colVal           = document.getElementById('col-val');
+const $scrollBtn        = document.getElementById('scroll-toggle');
+const $scrollLabel      = document.getElementById('scroll-label');
+const $vidUnlock        = document.getElementById('vid-unlock');
+const $compressIndicator = document.getElementById('compress-indicator');
+
+/* ─────────────────────────────────────────
+   IMAGE COMPRESSION
+   Tiles use compressed thumbnails (fast load).
+   Overlay and floats use full-res originals.
+───────────────────────────────────────── */
+
+/**
+ * Compress an image File to a JPEG data-URL at reduced dimensions.
+ * maxWidth / maxHeight cap — whichever is the binding constraint.
+ * @param {File} file
+ * @param {number} maxDim  longest side in pixels for the thumbnail
+ * @param {number} quality JPEG quality 0–1
+ * @returns {Promise<string>} data:image/jpeg…
+ */
+function compressImage(file, maxDim = 420, quality = 0.65) {
+  return new Promise((resolve, reject) => {
+    const blobUrl = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const ratio = Math.min(1, maxDim / Math.max(img.width, img.height));
+      const w = Math.round(img.width  * ratio);
+      const h = Math.round(img.height * ratio);
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(blobUrl);  /* free original blob */
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(blobUrl);
+      /* fallback: original blob URL (no compression) */
+      resolve(URL.createObjectURL(file));
+    };
+    img.src = blobUrl;
+  });
+}
+
+/* ─────────────────────────────────────────
+   DEMO GENERATOR
+───────────────────────────────────────── */
+function makeDemo(i) {
+  const c = document.createElement('canvas');
+  const s = (i * 137.508) % 1;
+  c.width  = 260 + Math.floor(s * 180);
+  c.height = 160 + Math.floor(((i * 97) % 1 || (i * .31) % 1) * 320);
+  const ctx = c.getContext('2d');
+  const pals = [['#111','#2a2a2a'],['#0f0f0f','#333'],['#1a1a1a','#3c3c3c'],
+                ['#050505','#222'],['#2e2e2e','#0a0a0a'],['#444','#141414']];
+  const [a, b] = pals[i % pals.length];
+  const g = ctx.createLinearGradient(0, 0, c.width, c.height);
+  g.addColorStop(0, a); g.addColorStop(1, b);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, c.width, c.height);
+  for (let n = 0; n < 500; n++) {
+    const v = 40 + Math.floor(Math.random() * 80);
+    ctx.fillStyle = `rgba(${v},${v},${v},.07)`;
+    ctx.fillRect(Math.random() * c.width, Math.random() * c.height,
+                 Math.random() * 3 + 1, Math.random() * 3 + 1);
+  }
+  ctx.strokeStyle = 'rgba(255,255,255,.035)'; ctx.lineWidth = 1;
+  for (let l = 0; l < 3 + Math.floor(Math.random() * 5); l++) {
+    ctx.beginPath();
+    ctx.moveTo(Math.random() * c.width, Math.random() * c.height);
+    ctx.lineTo(Math.random() * c.width, Math.random() * c.height);
+    ctx.stroke();
+  }
+  ctx.fillStyle = 'rgba(255,255,255,.09)';
+  ctx.font = `bold ${Math.floor(c.width / 6)}px serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(String(i + 1).padStart(2, '0'), c.width / 2, c.height / 2);
+  const url = c.toDataURL();
+  return { url, fullUrl: url, name: `frame_${String(i+1).padStart(3,'0')}.png`, path: `frame_${String(i+1).padStart(3,'0')}.png`, type: 'img' };
+}
+
+/* ─────────────────────────────────────────
+   FILE LOADING (async — compresses images)
+───────────────────────────────────────── */
+document.getElementById('demo-btn').addEventListener('click', () =>
+  boot(Array.from({ length: 32 }, (_, i) => makeDemo(i)))
+);
+
+const $fileInput = document.getElementById('file-input');
+const $dropBox   = document.getElementById('drop-box');
+$fileInput.addEventListener('change', e => loadFiles([...e.target.files]));
+$dropBox.addEventListener('dragover',  e => { e.preventDefault(); $dropBox.classList.add('drag'); });
+$dropBox.addEventListener('dragleave', ()  => $dropBox.classList.remove('drag'));
+$dropBox.addEventListener('drop', e => {
+  e.preventDefault(); $dropBox.classList.remove('drag');
+  loadFiles([...e.dataTransfer.files]);
+});
+
+async function loadFiles(files) {
+  const media = files.filter(f => f.type.startsWith('image/') || f.type.startsWith('video/'));
+  if (!media.length) return;
+
+  /* show compression progress */
+  const imgCount = media.filter(f => f.type.startsWith('image/')).length;
+  if (imgCount > 0) {
+    $compressIndicator.textContent = `COMPRESSING THUMBNAILS (0 / ${imgCount})…`;
+    $compressIndicator.classList.remove('gone');
+  }
+
+  let compressed = 0;
+  const items = await Promise.all(media.map(async f => {
+    const path = f.webkitRelativePath || f.name;
+    if (f.type.startsWith('video/')) {
+      const url = URL.createObjectURL(f);
+      return { url, fullUrl: url, name: f.name, path, type: 'vid' };
+    }
+    /* image: keep full-res blob URL for overlay; create compressed thumb for tiles */
+    const fullUrl  = URL.createObjectURL(f);
+    const thumbUrl = await compressImage(f, 420, 0.65);
+    compressed++;
+    $compressIndicator.textContent = `COMPRESSING THUMBNAILS (${compressed} / ${imgCount})…`;
+    return { url: thumbUrl, fullUrl, name: f.name, path, type: 'img' };
+  }));
+
+  $compressIndicator.classList.add('gone');
+  boot(items);
+}
+
+/* ─────────────────────────────────────────
+   BOOT
+───────────────────────────────────────── */
+function boot(data) {
+  ITEMS = data;
+  $metaLabel.textContent = `${ITEMS.length} items`;
+  $loadScr.classList.add('gone');
+  $ctrlPanel.classList.add('visible');
+  buildReel();
+}
+
+/* ─────────────────────────────────────────
+   BUILD REEL
+───────────────────────────────────────── */
+let resizeTimer;
+window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(buildReel, 220); });
+
+function buildReel() {
+  $reel.innerHTML = '';
+  allTileVids.clear();
+  if (!ITEMS.length) return;
+
+  const gap   = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--gap')) || 5;
+  const nCols = Math.max(2, Math.floor((window.innerWidth + gap) / (colSize + gap)));
+  const cols  = Array.from({ length: nCols }, () => []);
+  ITEMS.forEach((item, i) => cols[i % nCols].push({ ...item, origIdx: i }));
+
+  const pendingVids = [];
+
+  cols.forEach(colItems => {
+    if (!colItems.length) return;
+    const col   = document.createElement('div');
+    col.className = 'col' + (autoScroll ? '' : ' manual');
+    const inner = document.createElement('div');
+    inner.className = 'col-inner' + (autoScroll ? '' : ' manual-mode');
+
+    const dir  = Math.random() > .5 ? 'up' : 'dn';
+    const base = parseFloat((14 + Math.random() * 28).toFixed(1));
+    inner.dataset.base = base;
+    inner.dataset.dir  = dir;
+
+    /* render items twice for seamless loop (only in auto mode) */
+    const sets = autoScroll ? 2 : 1;
+    for (let s = 0; s < sets; s++) {
+      colItems.forEach(item => {
+        inner.appendChild(makeTile(item, pendingVids));
+      });
+    }
+
+    if (autoScroll) {
+      inner.classList.add(dir);
+      applyColSpeed(inner, base);
+    }
+
+    col.appendChild(inner);
+    $reel.appendChild(col);
+  });
+
+  /* ── Play videos after DOM insertion ── */
+  pendingVids.forEach(vid => {
+    allTileVids.add(vid);
+    if (videosUnlocked) {
+      vid.play().catch(() => {});
+    } else {
+      vid.play().then(() => {
+        videosUnlocked = true;
+        $vidUnlock.classList.add('gone');
+      }).catch(() => {});
+    }
+  });
+
+  /* check if any video is blocked and show banner */
+  const hasVids = ITEMS.some(i => i.type === 'vid');
+  if (hasVids && !videosUnlocked) {
+    /* leave banner visible */
+  } else {
+    $vidUnlock.classList.add('gone');
+  }
+
+  /* re-attach floats: measure rects BEFORE hiding, then hide, then create */
+  if (pinSet.size > 0) {
+    pinFloats.forEach(el => el.remove()); pinFloats.clear();
+
+    /* 1. collect rects while tiles are still visible (no float-src class yet) */
+    const savedRects = new Map();
+    pinSet.forEach(idx => {
+      const el = document.querySelector(`.item[data-orig-idx="${idx}"]`);
+      if (el) savedRects.set(idx, el.getBoundingClientRect());
+    });
+
+    /* 2. now hide them */
+    pinSet.forEach(idx => markFloatSrc(idx, true));
+
+    /* 3. create floats using saved rects */
+    pinSet.forEach(idx => {
+      const rect = savedRects.get(idx);
+      if (rect && rect.width > 0) createFloatAtRect(idx, rect);
+    });
+  }
+}
+
+/* ─────────────────────────────────────────
+   VIDEO UNLOCK ON FIRST CLICK
+───────────────────────────────────────── */
+$vidUnlock.addEventListener('click', unlockVideos);
+document.addEventListener('click', () => {
+  if (!videosUnlocked) unlockVideos();
+}, { once: true });
+
+function unlockVideos() {
+  videosUnlocked = true;
+  $vidUnlock.classList.add('gone');
+  allTileVids.forEach(vid => {
+    if (vid.paused) vid.play().catch(() => {});
+  });
+}
+
+/* ─────────────────────────────────────────
+   COLUMN SPEED HELPERS
+───────────────────────────────────────── */
+function applyColSpeed(inner, base) {
+  if (!autoScroll) return;
+  const dur = (base / speedMult).toFixed(2);
+  inner.style.animationDuration = dur + 's';
+  if (inner.classList.contains('dn'))
+    inner.style.animationDelay = '-' + (parseFloat(dur) / 2).toFixed(2) + 's';
+}
+
+function pauseAllCols() {
+  document.querySelectorAll('.col-inner').forEach(el => el.classList.add('paused'));
+}
+
+function resumeAllCols() {
+  document.querySelectorAll('.col-inner').forEach(el => el.classList.remove('paused'));
+}
+
+/* ─────────────────────────────────────────
+   MAKE TILE
+   Tiles always use item.url (compressed thumb for images).
+───────────────────────────────────────── */
+function makeTile(item, pendingVids) {
+  const el = document.createElement('div');
+  el.className = 'item';
+  el.dataset.origIdx = item.origIdx;
+  /* pinned tiles are hidden via display:none — no empty space */
+  if (pinSet.has(item.origIdx)) el.classList.add('float-src');
+
+  if (item.type === 'img') {
+    const img = document.createElement('img');
+    img.src = item.url;       /* compressed thumbnail */
+    img.loading = 'lazy';
+    img.alt = item.name;
+    el.appendChild(img);
+  } else {
+    const vid = document.createElement('video');
+    vid.src        = item.url;
+    vid.muted      = true;
+    vid.loop       = true;
+    vid.playsInline = true;
+    vid.preload    = 'auto';
+    el.appendChild(vid);
+    pendingVids.push(vid);
+  }
+
+  const label = document.createElement('div');
+  label.className = 'item-label';
+  label.textContent = item.name;
+  el.appendChild(label);
+
+  const pinBtn = document.createElement('div');
+  pinBtn.className = 'pin-btn';
+  pinBtn.textContent = pinSet.has(item.origIdx) ? 'PIN ◆' : 'PIN';
+  el.appendChild(pinBtn);
+
+  pinBtn.addEventListener('click', e => { e.stopPropagation(); togglePin(item.origIdx); });
+  el.addEventListener('click', () => openOverlay(item.origIdx));
+  return el;
+}
+
+/* ─────────────────────────────────────────
+   PIN HELPERS
+───────────────────────────────────────── */
+function markFloatSrc(idx, on) {
+  document.querySelectorAll(`.item[data-orig-idx="${idx}"]`).forEach(el => {
+    el.classList.toggle('float-src', on);
+    el.classList.toggle('pin-active', on);
+    const btn = el.querySelector('.pin-btn');
+    if (btn) btn.textContent = on ? 'PIN ◆' : 'PIN';
+  });
+}
+
+function togglePin(idx) {
+  if (pinSet.has(idx)) {
+    /* unpin */
+    pinSet.delete(idx);
+    const f = pinFloats.get(idx);
+    if (f) { f.remove(); pinFloats.delete(idx); }
+    markFloatSrc(idx, false);
+  } else {
+    /* pin — capture rect BEFORE hiding so layout is readable */
+    const srcEl = document.querySelector(`.item[data-orig-idx="${idx}"]`);
+    const rect  = srcEl ? srcEl.getBoundingClientRect() : null;
+    pinSet.add(idx);
+    markFloatSrc(idx, true);   /* now hidden (display:none) */
+    if (rect && rect.width > 0) createFloatAtRect(idx, rect);
+    recordStat(idx, 'pin');
+  }
+  syncOvPin();
+}
+
+/* createFloat using a pre-measured rect (avoids measuring display:none elements) */
+function createFloatAtRect(idx, rect) {
+  const item = ITEMS[idx];
+  if (!item) return;
+
+  const el = document.createElement('div');
+  el.className = 'pin-float';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'pin-float-close';
+  closeBtn.textContent = '×';
+  closeBtn.addEventListener('click', e => { e.stopPropagation(); togglePin(idx); });
+  el.appendChild(closeBtn);
+
+  if (item.type === 'img') {
+    const img = document.createElement('img');
+    /* float shows full-resolution image */
+    img.src = item.fullUrl || item.url;
+    el.appendChild(img);
+  } else {
+    const vid = document.createElement('video');
+    vid.src = item.fullUrl || item.url;
+    vid.muted = true; vid.loop = true; vid.playsInline = true; vid.preload = 'auto';
+    el.appendChild(vid);
+  }
+
+  el.style.cssText = `left:${rect.left}px; top:${rect.top}px; width:${rect.width}px;`;
+  document.body.appendChild(el);
+
+  const fv = el.querySelector('video');
+  if (fv) fv.play().catch(() => {});
+
+  pinFloats.set(idx, el);
+}
+
+/* legacy wrapper — used only if a pre-measured rect is unavailable */
+function createFloat(idx) {
+  const src = document.querySelector(`.item[data-orig-idx="${idx}"]`);
+  if (!src) return;
+  /* temporarily force display so we can measure */
+  src.style.setProperty('display', 'block', 'important');
+  src.style.setProperty('visibility', 'visible', 'important');
+  const rect = src.getBoundingClientRect();
+  src.style.removeProperty('display');
+  src.style.removeProperty('visibility');
+  createFloatAtRect(idx, rect);
+}
+
+/* ─────────────────────────────────────────
+   CONTROLS
+───────────────────────────────────────── */
+function setTrack(range) {
+  const pct = ((range.value - range.min) / (range.max - range.min) * 100).toFixed(1);
+  range.style.background = `linear-gradient(to right,#777 ${pct}%,#2a2a2a ${pct}%)`;
+}
+
+/* Scroll toggle */
+$scrollBtn.addEventListener('click', () => {
+  autoScroll = !autoScroll;
+  $scrollBtn.classList.toggle('on', autoScroll);
+  $scrollLabel.textContent = autoScroll ? 'AUTO' : 'MANUAL';
+  buildReel();
+});
+
+/* Speed */
+$spdRange.addEventListener('input', () => {
+  speedMult = parseFloat($spdRange.value);
+  $spdVal.textContent = speedMult.toFixed(2).replace(/\.?0+$/, '') + '×';
+  setTrack($spdRange);
+  if (autoScroll) {
+    document.querySelectorAll('.col-inner').forEach(inner =>
+      applyColSpeed(inner, parseFloat(inner.dataset.base))
+    );
+  }
+});
+
+/* Column / tile size */
+$colRange.addEventListener('input', () => {
+  colSize = parseInt($colRange.value);
+  $colVal.textContent = colSize + 'px';
+  setTrack($colRange);
+  document.documentElement.style.setProperty('--col-min', colSize + 'px');
+  buildReel();
+});
+
+/* Pin scale */
+$sizRange.addEventListener('input', () => {
+  pinScale = parseFloat($sizRange.value);
+  $sizVal.textContent = pinScale.toFixed(2).replace(/\.?0+$/, '') + '×';
+  setTrack($sizRange);
+  document.documentElement.style.setProperty('--pin-scale', pinScale);
+});
+
+/* CSV export */
+document.getElementById('csv-btn').addEventListener('click', downloadCSV);
+
+setTrack($spdRange); setTrack($sizRange); setTrack($colRange);
+
+/* ─────────────────────────────────────────
+   OVERLAY
+   Uses fullUrl for full-resolution viewing.
+───────────────────────────────────────── */
+function openOverlay(idx) {
+  viewIdx = idx;
+  loadMedia(idx);
+  $overlay.classList.add('open');
+  recordStat(idx, 'open');
+  if (autoScroll) pauseAllCols();
+  if (resumeTimer) { clearTimeout(resumeTimer); resumeTimer = null; }
+}
+
+function loadMedia(idx) {
+  const item = ITEMS[idx];
+  $ovName.textContent    = item.name;
+  $ovCounter.textContent = `${idx + 1} / ${ITEMS.length}`;
+
+  if (item.type === 'img') {
+    /* always use full-res url in overlay */
+    $ovImg.src = item.fullUrl || item.url;
+    $ovImg.style.display = 'block';
+    $ovVid.style.display = 'none'; $ovVid.pause(); $ovVid.src = '';
+  } else {
+    $ovVid.src = item.fullUrl || item.url;
+    $ovVid.style.display = 'block';
+    $ovImg.style.display = 'none';
+    $ovVid.play().catch(() => {});
+  }
+  syncOvPin();
+}
+
+function closeOverlay() {
+  $overlay.classList.remove('open');
+  $ovVid.pause(); $ovVid.src = '';
+  viewIdx = -1;
+  if (autoScroll) {
+    resumeTimer = setTimeout(() => {
+      resumeAllCols();
+      resumeTimer = null;
+    }, 2000);
+  }
+}
+
+function navigate(dir) {
+  if (!ITEMS.length) return;
+  viewIdx = (viewIdx + dir + ITEMS.length) % ITEMS.length;
+  loadMedia(viewIdx);
+}
+
+function syncOvPin() {
+  const btn = document.getElementById('ov-pin');
+  if (!btn) return;
+  const on = viewIdx >= 0 && pinSet.has(viewIdx);
+  btn.classList.toggle('active', on);
+  btn.textContent = on ? 'PIN ◆' : 'PIN';
+}
+
+document.getElementById('ov-pin').addEventListener('click', () => { if (viewIdx >= 0) togglePin(viewIdx); });
+document.getElementById('ov-close').addEventListener('click', closeOverlay);
+document.getElementById('nav-l').addEventListener('click', e => { e.stopPropagation(); navigate(-1); });
+document.getElementById('nav-r').addEventListener('click', e => { e.stopPropagation(); navigate(+1); });
+$overlay.addEventListener('click', e => { if (e.target === $overlay) closeOverlay(); });
+
+document.addEventListener('keydown', e => {
+  if (!$overlay.classList.contains('open')) return;
+  if (e.key === 'Escape')     closeOverlay();
+  if (e.key === 'ArrowLeft')  navigate(-1);
+  if (e.key === 'ArrowRight') navigate(+1);
+});
+
+let _tx = 0;
+$overlay.addEventListener('touchstart', e => { _tx = e.touches[0].clientX; }, { passive: true });
+$overlay.addEventListener('touchend',   e => {
+  const dx = e.changedTouches[0].clientX - _tx;
+  if (Math.abs(dx) > 44) navigate(dx < 0 ? 1 : -1);
+});
+
+/* ─────────────────────────────────────────
+   INIT
+───────────────────────────────────────── */
+loadPersistedStats();
+updateCsvBtn();
+</script>
+</body>
+</html>
