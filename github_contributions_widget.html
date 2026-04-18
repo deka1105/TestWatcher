@@ -1,0 +1,177 @@
+
+<style>
+#widget{background:#0d1117;border:1px solid #30363d;border-radius:16px;padding:20px;max-width:720px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif}
+#un{flex:1;background:#161b22;border:1px solid #30363d;border-radius:6px;color:#e6edf3;padding:8px 12px;font-size:13px;outline:none;transition:border-color 0.2s}
+#un:focus{border-color:#58a6ff}
+#loadBtn{background:#238636;border:1px solid #2ea043;border-radius:6px;color:#fff;padding:8px 16px;font-size:13px;cursor:pointer;font-weight:500;white-space:nowrap;transition:background 0.15s}
+#loadBtn:hover{background:#2ea043}
+#loadBtn:disabled{opacity:0.5;cursor:not-allowed}
+.sc{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px 14px}
+.sc-label{font-size:11px;color:#7d8590;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.6px}
+.sc-val{font-size:20px;font-weight:600;color:#e6edf3}
+#cal{overflow-x:auto;margin-top:4px}
+#cal svg{display:block}
+#cal rect{transition:opacity 0.1s}
+#cal rect:hover{opacity:0.75;cursor:default}
+.username-display{font-size:14px;color:#e6edf3;font-weight:500}
+.username-sub{font-size:12px;color:#7d8590;margin-top:1px}
+</style>
+
+<div style="padding:0.5rem 0">
+  <div id="widget">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+      <div style="display:flex;gap:6px">
+        <div style="width:12px;height:12px;border-radius:50%;background:#ff5f57"></div>
+        <div style="width:12px;height:12px;border-radius:50%;background:#febc2e"></div>
+        <div style="width:12px;height:12px;border-radius:50%;background:#28c840"></div>
+      </div>
+      <div style="text-align:center">
+        <div id="wtitle" style="font-size:13px;color:#7d8590">GitHub Contributions</div>
+      </div>
+      <svg width="18" height="18" viewBox="0 0 98 96" fill="#7d8590"><path d="M48.9 0C21.9 0 0 22 0 49.2c0 21.8 14 40.2 33.5 46.7 2.4.5 3.3-1.1 3.3-2.4v-8.4c-13.5 3-16.4-6.5-16.4-6.5-2.2-5.6-5.4-7.1-5.4-7.1-4.4-3 .3-3 .3-3 4.9.4 7.5 5.1 7.5 5.1 4.4 7.5 11.5 5.3 14.3 4 .4-3.2 1.7-5.3 3.1-6.5-10.8-1.2-22.1-5.4-22.1-24.1 0-5.3 1.9-9.7 5-13.1-.5-1.2-2.2-6.2.5-12.9 0 0 4.1-1.3 13.4 5 3.9-1.1 8.1-1.6 12.2-1.6 4.1 0 8.3.6 12.2 1.6 9.3-6.3 13.4-5 13.4-5 2.7 6.7 1 11.7.5 12.9 3.1 3.4 5 7.8 5 13.1 0 18.7-11.4 22.9-22.2 24.1 1.7 1.5 3.3 4.5 3.3 9.1v13.5c0 1.3.9 2.9 3.4 2.4C84 89.3 98 70.9 98 49.2 98 22 76.1 0 48.9 0z"/></svg>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-bottom:18px">
+      <input id="un" type="text" placeholder="GitHub username…" value="torvalds" spellcheck="false">
+      <button id="loadBtn" onclick="loadContribs()">Load ↗</button>
+    </div>
+
+    <div id="stats" style="display:none;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:18px">
+      <div class="sc"><div class="sc-label">Contributions</div><div id="sv-total" class="sc-val">—</div></div>
+      <div class="sc"><div class="sc-label">Current streak</div><div id="sv-streak" class="sc-val">—</div></div>
+      <div class="sc"><div class="sc-label">Best day</div><div id="sv-best" class="sc-val">—</div></div>
+    </div>
+
+    <div id="cal"><div style="color:#7d8590;font-size:13px;text-align:center;padding:24px 0">Enter a username and click Load</div></div>
+
+    <div id="legend" style="display:none;align-items:center;justify-content:flex-end;gap:3px;margin-top:10px">
+      <span style="font-size:11px;color:#7d8590;margin-right:2px">Less</span>
+      <svg width="11" height="11"><rect width="11" height="11" rx="2" fill="#161b22" stroke="#30363d" stroke-width="0.5"/></svg>
+      <svg width="11" height="11"><rect width="11" height="11" rx="2" fill="#0e4429"/></svg>
+      <svg width="11" height="11"><rect width="11" height="11" rx="2" fill="#006d32"/></svg>
+      <svg width="11" height="11"><rect width="11" height="11" rx="2" fill="#26a641"/></svg>
+      <svg width="11" height="11"><rect width="11" height="11" rx="2" fill="#39d353"/></svg>
+      <span style="font-size:11px;color:#7d8590;margin-left:2px">More</span>
+    </div>
+    <div id="tooltip" style="display:none;position:absolute;background:#1c2128;border:1px solid #30363d;border-radius:6px;padding:6px 10px;font-size:12px;color:#e6edf3;pointer-events:none;z-index:10"></div>
+  </div>
+</div>
+
+<script>
+const C=['#161b22','#0e4429','#006d32','#26a641','#39d353'];
+const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+async function loadContribs(){
+  const username=document.getElementById('un').value.trim();
+  if(!username)return;
+  const btn=document.getElementById('loadBtn');
+  btn.textContent='Loading…';btn.disabled=true;
+  document.getElementById('stats').style.display='none';
+  document.getElementById('legend').style.display='none';
+  document.getElementById('cal').innerHTML='<div style="color:#7d8590;font-size:13px;text-align:center;padding:24px 0">Fetching contributions…</div>';
+  document.getElementById('wtitle').textContent='GitHub Contributions';
+  try{
+    const r=await fetch(`https://github-contributions-api.jogruber.de/v4/${encodeURIComponent(username)}?y=last`);
+    if(!r.ok)throw new Error('User not found or API error');
+    const data=await r.json();
+    renderStats(data.contributions);
+    renderGrid(data.contributions, username);
+    document.getElementById('wtitle').textContent=`@${username}`;
+  }catch(e){
+    document.getElementById('cal').innerHTML=`<div style="color:#f85149;font-size:13px;text-align:center;padding:24px 0">${e.message}</div>`;
+  }finally{
+    btn.textContent='Load ↗';btn.disabled=false;
+  }
+}
+
+function renderStats(contribs){
+  const total=contribs.reduce((s,d)=>s+d.count,0);
+  const best=contribs.reduce((m,d)=>d.count>m?d.count:m,0);
+  let streak=0;
+  const today=new Date().toISOString().slice(0,10);
+  for(let i=contribs.length-1;i>=0;i--){
+    if(contribs[i].date>today)continue;
+    if(contribs[i].count>0)streak++;
+    else break;
+  }
+  document.getElementById('sv-total').textContent=total.toLocaleString();
+  document.getElementById('sv-streak').textContent=streak===0?'0 days':streak+' day'+(streak!==1?'s':'');
+  document.getElementById('sv-best').textContent=best+' commit'+(best!==1?'s':'');
+  document.getElementById('stats').style.display='grid';
+  document.getElementById('legend').style.display='flex';
+}
+
+function renderGrid(contribs, username){
+  if(!contribs||contribs.length===0){
+    document.getElementById('cal').innerHTML='<div style="color:#7d8590;font-size:13px;text-align:center;padding:24px 0">No contribution data</div>';
+    return;
+  }
+  const cs=11,gap=3,step=cs+gap;
+  const first=new Date(contribs[0].date);
+  const startDow=first.getDay();
+  const weeks=[];
+  let week=Array(startDow).fill(null);
+  for(const d of contribs){
+    week.push(d);
+    if(week.length===7){weeks.push(week);week=[];}
+  }
+  if(week.length){while(week.length<7)week.push(null);weeks.push(week);}
+
+  const W=weeks.length;
+  const svgW=32+W*step;
+  const svgH=26+7*step;
+
+  let monthSvg='';
+  let lastM=-1;
+  for(let w=0;w<W;w++){
+    const first=weeks[w].find(d=>d!==null);
+    if(first){
+      const dt=new Date(first.date);const m=dt.getMonth();
+      if(m!==lastM){
+        monthSvg+=`<text x="${32+w*step}" y="12" fill="#7d8590" font-size="10" font-family="-apple-system,BlinkMacSystemFont,sans-serif">${MONTHS[m]}</text>`;
+        lastM=m;
+      }
+    }
+  }
+
+  let daySvg='';
+  [1,3,5].forEach(dow=>{
+    daySvg+=`<text x="0" y="${20+dow*step+cs*0.75}" fill="#7d8590" font-size="9" font-family="-apple-system,BlinkMacSystemFont,sans-serif">${DAYS[dow]}</text>`;
+  });
+
+  let cells='';
+  for(let w=0;w<W;w++){
+    for(let d=0;d<7;d++){
+      const day=weeks[w][d];
+      const x=32+w*step,y=20+d*step;
+      if(day===null){
+        cells+=`<rect x="${x}" y="${y}" width="${cs}" height="${cs}" rx="2" fill="#0d1117"/>`;
+      }else{
+        const col=C[Math.min(day.level,4)];
+        cells+=`<rect x="${x}" y="${y}" width="${cs}" height="${cs}" rx="2" fill="${col}" data-date="${day.date}" data-count="${day.count}" onmouseenter="showTip(event,this)" onmouseleave="hideTip()"/>`;
+      }
+    }
+  }
+
+  document.getElementById('cal').innerHTML=`<svg width="${svgW}" height="${svgH}" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">${monthSvg}${daySvg}${cells}</svg>`;
+}
+
+function showTip(e,el){
+  const tt=document.getElementById('tooltip');
+  const count=el.getAttribute('data-count');
+  const date=el.getAttribute('data-date');
+  const dt=new Date(date+'T12:00:00');
+  const label=dt.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  tt.textContent=`${count} contribution${count!=='1'?'s':''} on ${label}`;
+  tt.style.display='block';
+  const rect=el.getBoundingClientRect();
+  const wr=document.getElementById('widget').getBoundingClientRect();
+  tt.style.left=(rect.left-wr.left)+'px';
+  tt.style.top=(rect.top-wr.top-36)+'px';
+}
+function hideTip(){document.getElementById('tooltip').style.display='none';}
+
+document.getElementById('un').addEventListener('keydown',e=>{if(e.key==='Enter')loadContribs();});
+loadContribs();
+</script>
